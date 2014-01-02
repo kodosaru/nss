@@ -1,0 +1,18 @@
+NSS Security Report for MERCURY on 01/02/2014 at 18:39:13
+Up for 1 day(s) 18:50 hour(s) with 1, 5, & 15 minute load averages of 0.04, 0.02, 0.00
+
+*** Activity in the Last 24 Hours ***
+sudo by: donj 
+logins by: donj 
+reboots at time(s): none
+No new users found
+No new TCP ports found
+
+*** System Configuration ***
+OK: SSHD is configured securely
+OK: TCP wrappers is enabled
+OK: Sudoers is configured securely
+OK: Firewall is enabled and running
+OK: Selinux is enabled and running
+
+Mailed report to: kodosaru@gmail.com 
