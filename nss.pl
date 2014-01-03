@@ -2,34 +2,36 @@
 # 
 # *Nix Security Scanner v1.0: nss.pl
 # For use on Unix and Linux hosts
+# Don Johnson <kodosaru@gmail.com>
   
 # See function sub HELP_MESSAGE() definition for command line options
 # Location of configuration file is /etc/nss.<OS>.conf
    
-# 20081130 donj Initial
-# 20081208 donj Added port map and password file check
-# 20081227 donj Added configuration file, email and paging
-# 20081229 donj Handled configuration file entry with no value, added utility paths, 24 hr activity
-# 20090105 donj Modifications for Solaris
-# 20090106 donj Created firewall subs and used Perl regexps instead of egrep for Linux firewall analysis
-# 20090107 donj Added check for "tcp_map" equals "yes" before creating baseline port map
-# 20090108 donj Add uptime to report header, other format changes, no email option, fix for empty host variable, ignore log records older than old year old
-# 20090119 donj Add help facility
-# 20090121 donj Bug fix: misplaced exit statement
-# 20090204 donj Changed upper bound on X11 ports from 6020 to 6029
-# 20090318 donj Add the ability to ignore a band of udp and/or tcp ports when baselining
-# 20090319 donj Baseline all ports and only ignore when comparing
-# 20090713 donj Added to code to handle different compressed log file extensions
-# 20090722 donj Improved code to handle different compressed log file extensions
-# 20090722 donj Fixed bug where program did not detect firewall not running and also stopped firewall check
+# 20081130 Initial
+# 20081208 Added port map and password file check
+# 20081227 Added configuration file, email and paging
+# 20081229 Handled configuration file entry with no value, added utility paths, 24 hr activity
+# 20090105 Modifications for Solaris
+# 20090106 Created firewall subs and used Perl regexps instead of egrep for Linux firewall analysis
+# 20090107 Added check for "tcp_map" equals "yes" before creating baseline port map
+# 20090108 Add uptime to report header, other format changes, no email option, fix for empty host variable, ignore log records older than old year old
+# 20090119 Add help facility
+# 20090121 Bug fix: misplaced exit statement
+# 20090204 Changed upper bound on X11 ports from 6020 to 6029
+# 20090318 Add the ability to ignore a band of udp and/or tcp ports when baselining
+# 20090319 Baseline all ports and only ignore when comparing
+# 20090713 Added to code to handle different compressed log file extensions
+# 20090722 Improved code to handle different compressed log file extensions
+# 20090722 Fixed bug where program did not detect firewall not running and also stopped firewall check
 # from doing DNS lookups 
-# 20100310 donj Allowed Cmnd_Alias line in /etc/sudoers, improved filtering for nmap output, and checked for rsyslog.conf instead of syslog.conf
-# 20100815 donj Check that service "iptables" is turned on instead of "firewall" for users who are using default Redhat's default iptables service instead of custom firewall service
-# 20110101 donj Allow firewall checking for either "firewall" or "iptables" services
-# 20110103 donj Add runlevel configuration path variable
-# 20110627 donj Add ability to ignore some tcp wrapper daemons    
-# 20120608 donj Add "-y" switch to yum command that installs "nmap"
-# 20140102 donj Removed organizational specfic code and modified for Ubuntu systems
+# 20100310 Allowed Cmnd_Alias line in /etc/sudoers, improved filtering for nmap output, and checked for rsyslog.conf instead of syslog.conf
+# 20100815 Check that service "iptables" is turned on instead of "firewall" for users who are using default Redhat's default iptables service instead of custom firewall service
+# 20110101 Allow firewall checking for either "firewall" or "iptables" services
+# 20110103 Add runlevel configuration path variable
+# 20110627 Add ability to ignore some tcp wrapper daemons    
+# 20120608 Add "-y" switch to yum command that installs "nmap"
+# 20140102 Removed organizational specfic code and modified for Ubuntu systems
+# 20140103 Added some more debug statements to the baseline creating section and removed temp files left sometimes when ran on Ubuntu system
 
 use strict;
 use warnings;
@@ -79,6 +81,7 @@ my @portlist;
 my @diffout;
 my @userlist;
 my $cmdout;
+my @cmdout;
 my @nmapout;
 my @nmapouttmp;
 my %config;
@@ -244,9 +247,18 @@ else {
 }
 
 # Create new baseline files
+if( -e "/var/tmp/nss/nmap.tcp.temp"){
+	unlink("/var/tmp/nss/nmap.tcp.temp");
+}
+if( -e "/var/tmp/nss/nmap.udp.temp"){
+	unlink("/var/tmp/nss/nmap.udp.temp");
+}
 if ( defined $options{'b'} ) {
     print "Creating new baseline files...\n";
     ## Save a copy of the password file
+    if ( defined $options{'v'} ) {
+		printf("\nSaving a copy of the passwd file...\n");
+	}
     copy( "/etc/passwd", "/var/tmp/nss/passwd.$date" )
       or die \"/etc/passwd cannot be copied";
 
@@ -261,18 +273,30 @@ if ( defined $options{'b'} ) {
     }
     if ( $config{'udp_map'} && $config{'udp_map'} =~ /yes/i ) {
         @nmapouttmp = `$config{'nmap_path'} -p0-32767 -P0 -sU -r localhost`;
+		if ( defined $options{'v'} ) {
+			printf("\nSaving a copy of the UDP port profile...\n");
+		}
 		foreach (@nmapouttmp) {
 		  if($_ =~ /^\d.+\/udp\s+open\S*\s+\S+$/) {
+			if ( defined $options{'v'} ) {
+				printf("$_");
+			}
 		    push(@nmapout,$_);	
 		  }
 		}
 		undef(@nmapouttmp);
         open( FILE, ">/var/tmp/nss/nmap.udp.$date" );
+		if ( defined $options{'v'} ) {
+			printf("Printing out /var/tmp/nss/nmap.udp.$date\n");
+		}
         print( FILE @nmapout );
         close(FILE);
     }
 
     if ( $config{'tcp_map'} && $config{'tcp_map'} =~ /yes/i ) {
+		if ( defined $options{'v'} ) {
+			printf("\nSaving a copy of the TCP port profile...\n");
+		}
         if ( $config{'os'} eq 'sunos' ) {
             $datadir = $config{'nmap_datadir'};
             @nmapouttmp =
@@ -283,15 +307,25 @@ if ( defined $options{'b'} ) {
         }
 		foreach (@nmapouttmp) {
 		  if($_ =~ /^\d.+\/tcp\s+open\S*\s+\S+$/) {
+			if ( defined $options{'v'} ) {
+				printf("$_");
+			}
 		    push(@nmapout,$_);	
 		  }
 		}
 		undef(@nmapouttmp);
         open( FILE, ">/var/tmp/nss/nmap.tcp.$date" );
+		if ( defined $options{'v'} ) {
+			printf("Printing out /var/tmp/nss/nmap.tcp.$date\n");
+		}
 		print (FILE @nmapout);
         close(FILE);
     }
-    print "New baseline files created in /var/tmp/nss\n";
+	if ( defined $options{'v'} ) {
+		print "\nNew baseline files created in /var/tmp/nss:\n";
+		@cmdout=`ls -l /var/tmp/nss`; 
+		print @cmdout;
+	}
     exit(0);
 }
 
@@ -844,7 +878,7 @@ if ( $config{'firewall_check'} && $config{'firewall_check'} =~ /yes/i ) {
         }
     }
     elsif ( $config{'os'} eq "linux" && $linux_dist eq "ubuntu" ) {
-		my @cmdout = `ufw status`;
+		@cmdout = `ufw status`;
 		chomp($cmdout[0]);
         if ( $cmdout[0] eq "Status: active" ) {
             push( @log, "OK: Firewall is enabled and running\n" );
