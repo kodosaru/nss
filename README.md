@@ -9,7 +9,7 @@ NSS: *Nix Security Scanner
     - Sudoers
     - Firewall
     - Selinux (Redhat only)
-2. Aids detection of intrusions by listing:
+2. Aids the detection of intrusions by listing:
     - New, potentially unauthorized users
     - Suspicious logins
     - New open ports (TCP and/or UDP) indicating possible installation of malware
