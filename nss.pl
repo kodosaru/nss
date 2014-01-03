@@ -29,6 +29,7 @@
 # 20110103 donj Add runlevel configuration path variable
 # 20110627 donj Add ability to ignore some tcp wrapper daemons    
 # 20120608 donj Add "-y" switch to yum command that installs "nmap"
+# 20140102 donj Removed organizational specfic code and modified for Ubuntu systems
 
 use strict;
 use warnings;
