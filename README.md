@@ -21,23 +21,24 @@ NSS: *Nix Security Scanner
 
 **Sample Report**
 
-    NSS Security Report for AETHER on 01/03/2014 at 00:14:51
-    Up for 1 day(s) 12:57 hour(s) with 1, 5, & 15 minute load averages of 1.57, 1.62, 1.60
-    
+    NSS Security Report for AETHER on 01/03/2014 at 09:13:57
+    Up for 1:08 hour(s) with 1, 5, & 15 minute load averages of 0.12, 0.15, 0.12
+
     *** Activity in the Last 24 Hours ***
     sudo by: none
     logins by: donj 
-    reboots at time(s): none
-    No new users found
+    reboots at time(s): Jan  3 08:05 
+    Warning: New users found:
+    < evilman:x:1002:1002:Test User:/home/evilman:/bin/sh
     Warning: New TCP port(s) found:
     < 80/tcp    open  http
 
     *** System Configuration ***
     OK: SSHD is configured securely
     OK: TCP wrappers is enabled
-    WARNING: File /etc/sudoers is insecurely configured: evilman	ALL=(ALL:ALL) ALL
+    WARNING: File /etc/sudoers is insecurely configured: evilman    ALL=(ALL:ALL) ALL
     OK: Firewall is enabled and running
-    
+        
     Mailed alert to: kodosaru@gmail.com 
        
 This utility has been used on Solaris, Redhat (CentOS and Fedora) and Ubuntu systems. Download the files to your local machine and execute `install.sh`.
