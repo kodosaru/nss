@@ -1,3 +1,4 @@
+![image](http://kodosaru.net/images/saku_robot__anton_yu_01.png)
 NSS: *Nix Security Scanner
 ===========================
 **NSS is a simple security scanner for Linux/Unix systems that serves two functions:**
