@@ -32,6 +32,8 @@
 # 20120608 Add "-y" switch to yum command that installs "nmap"
 # 20140102 Removed organizational specfic code and modified for Ubuntu systems
 # 20140103 Added some more debug statements to the baseline creating section and removed temp files left sometimes when ran on Ubuntu system
+# 20140103 Added auth or secure log configuration option
+# 20140104 Stopped call of delete_old_records on Ubuntu system because it was removing legitimate sudo records
 
 use strict;
 use warnings;
@@ -115,7 +117,7 @@ elsif ( -e "/etc/nss.solaris.conf" ) {
     $config_file = "/etc/nss.solaris.conf";
 }
 else {
-    print("Can't find configuration file: /etc/nss.<OS>.conf\n");
+	print "Unable to find configuration file /etc/nss.<OS>.conf\n";
     exit(2);
 }
 
@@ -141,6 +143,7 @@ $config{'firewall_check'} = "no ";
 $config{'selinux_check'} = "no";
 $config{'todays_activity'} = "no";
 $config{'log_write'} = "no";
+$config{'auth_path'} = "/var/log/secure";
 $config{'uname_path'} = "/bin/uname";
 $config{'nmap_path'} = "/usr/bin/nmap";
 $config{'diff_path'} = "/usr/bin/diff";
@@ -242,8 +245,8 @@ if ( line_processor( \@proclines, $config_file ) == 0 ) {
     }
 }
 else {
-    print "Unable to read configuration file nss.<OS>.conf";
-    exit(2);
+	print "Unable to read configuration file /etc/nss.<OS>.conf\n";
+	exit(2);
 }
 
 # Create new baseline files
@@ -379,13 +382,13 @@ if ( $config{'todays_activity'} && $config{'todays_activity'} =~ /yes/i ) {
     my $log2 = "";
     my $log3 = "";
     if ( $config{'os'} eq "linux" ) {
-        $log1 = "/var/log/secure";
-        $log2 = "/var/log/secure.1";
+        $log1 = $config{'auth_path'};
+        $log2 = $config{'auth_path'} . ".1";
     }
     elsif ( $config{'os'} eq "sunos" ) {
-        $log1 = "/var/log/local2";
-        $log2 = "/var/log/oldlogs/local2.$date";
-        $log3 = "/var/log/oldlogs/local2.$yesterday";
+        $log1 = $config{'auth_path'};
+        $log2 = $config{'auth_path'} . ".$date";
+        $log3 = $config{'auth_path'} . ".$yesterday";
         my $temp = $log2 . ".gz";
         if ( -e $temp ) {
             $cmdout = `$config{'gunzip_path'} $temp`;
@@ -405,12 +408,12 @@ if ( $config{'todays_activity'} && $config{'todays_activity'} =~ /yes/i ) {
     if ( -e $log1 ) {
         open( FILE, "<$log1" );
         if ( defined $options{'v'} ) {
-            print("\tReading in first log file...\n");
+            print("\tReading in first log file $log1...\n");
         }
         @sudo = <FILE>;
         close(FILE);
         if ( defined $options{'v'} ) {
-            print("\tScanning first log file...\n");
+            print("\tScanning first log file $log1...\n");
         }
         foreach (@sudo) {
             if ( $_ =~ /sudo:/ ) {
@@ -422,12 +425,12 @@ if ( $config{'todays_activity'} && $config{'todays_activity'} =~ /yes/i ) {
     if ( -e $log2 ) {
         open( FILE, "<$log2" );
         if ( defined $options{'v'} ) {
-            print("\tReading in second log file...\n");
+            print("\tReading in second log file $log2...\n");
         }
         @sudo = <FILE>;
         close(FILE);
         if ( defined $options{'v'} ) {
-            print("\tScanning second log file...\n");
+            print("\tScanning second log file $log2...\n");
         }
         foreach (@sudo) {
             if ( $_ =~ /sudo:/ ) {
@@ -450,14 +453,15 @@ if ( $config{'todays_activity'} && $config{'todays_activity'} =~ /yes/i ) {
             if ( $_ =~ /sudo:/ ) {
                 push( @sudo_found, $_ );
             }
-
         }
         @sudo = ();
     }
 
     $offset = 0;
     $length = 12;
-    delete_old_records( \@sudo_found, $offset, $length );
+	if ( $linux_dist eq "redhat" ) {
+    	delete_old_records( \@sudo_found, $offset, $length );
+	}
     $minlen = $offset + $length;
     %users  = ();
     my $user_offset = $config{'os'} eq "linux" ? 5 : 8;
@@ -479,7 +483,9 @@ if ( $config{'todays_activity'} && $config{'todays_activity'} =~ /yes/i ) {
     if ( scalar( keys(%users) ) > 0 ) {
         $line = "sudo by: ";
         foreach ( keys %users ) {
-            $line = $line . $_ . " ";
+			if ( $_ !~ /pam_unix/ ) {
+            	$line = $line . $_ . " ";
+			}
         }
         $line = $line . "\n";
         push( @log, $line );
@@ -497,7 +503,9 @@ if ( $config{'todays_activity'} && $config{'todays_activity'} =~ /yes/i ) {
     my @reboots = ();
     $offset = 43;
     $length = 12;
-    delete_old_records( \@logins, $offset, $length );
+	if ( $linux_dist eq "redhat" ) {
+    	delete_old_records( \@logins, $offset, $length );
+	}
     $minlen = $offset + $length;
 
     foreach (@logins) {
