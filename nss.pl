@@ -34,6 +34,7 @@
 # 20140103 Added some more debug statements to the baseline creating section and removed temp files left sometimes when ran on Ubuntu system
 # 20140103 Added auth or secure log configuration option
 # 20140104 Stopped call of delete_old_records on Ubuntu system because it was removing legitimate sudo records
+# 20140109 Added path configuration for ufw and diagnostic code for Ubuntu check firewall
 
 use strict;
 use warnings;
@@ -156,7 +157,7 @@ $config{'chkconfig_path'} = "/sbin/chkconfig";
 $config{'getenforce_path'} = "/usr/sbin/getenforce";
 $config{'uptime_path'} = "/usr/bin/uptime";
 $config{'hostname_path'} = "/bin/hostname";
-$config{'runlevel_path'} = "/sbin/runlevel";
+$config{'ufw_path'} = "/usr/sbin/ufw";
 
 if ( line_processor( \@proclines, $config_file ) == 0 ) {
     foreach (@proclines) {
@@ -886,7 +887,7 @@ if ( $config{'firewall_check'} && $config{'firewall_check'} =~ /yes/i ) {
         }
     }
     elsif ( $config{'os'} eq "linux" && $linux_dist eq "ubuntu" ) {
-	@cmdout = `ufw status`;
+	@cmdout = `$config{'ufw_path'} status`;
 	if ( defined $options{'v'} ) {
 	    print("Output of 'ufw' command:\n");
 	    print @cmdout;
