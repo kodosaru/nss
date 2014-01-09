@@ -888,7 +888,7 @@ if ( $config{'firewall_check'} && $config{'firewall_check'} =~ /yes/i ) {
     elsif ( $config{'os'} eq "linux" && $linux_dist eq "ubuntu" ) {
 		@cmdout = `ufw status`;
 		chomp($cmdout[0]);
-        if ( $cmdout[0] eq "Status: active" ) {
+        if ( $cmdout[0] =~ /Status: +active/ ) {
             push( @log, "OK: Firewall is enabled and running\n" );
         }
         else {
