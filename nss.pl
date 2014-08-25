@@ -35,6 +35,7 @@
 # 20140103 Added auth or secure log configuration option
 # 20140104 Stopped call of delete_old_records on Ubuntu system because it was removing legitimate sudo records
 # 20140109 Added path configuration for ufw and diagnostic code for Ubuntu check firewall
+# 20140824 Modified port scans to better handle ranges 
 
 use strict;
 use warnings;
@@ -159,6 +160,9 @@ $config{'uptime_path'} = "/usr/bin/uptime";
 $config{'hostname_path'} = "/bin/hostname";
 $config{'ufw_path'} = "/usr/sbin/ufw";
 
+if ( defined $options{'v'} ) {
+	printf("\nReading in configuration file $config_file\n");
+}
 if ( line_processor( \@proclines, $config_file ) == 0 ) {
     foreach (@proclines) {
         @fields = split( ' ', $_, 2 );
@@ -270,45 +274,167 @@ if ( defined $options{'b'} ) {
     if (   $config{'tcp_map'} eq "yes"
         && !-e $config{'nmap_path'} )
     {
-        print
-"Nmap is not installed; please install before using NSS or change the 'tcp_map' \
+        print "Nmap is not installed; please install before using NSS or change the 'tcp_map' \
 	option in the nss.conf file to 'no'.\n";
         exit(1);
     }
-    if ( $config{'udp_map'} && $config{'udp_map'} =~ /yes/i ) {
-        @nmapouttmp = `$config{'nmap_path'} -p0-32767 -P0 -sU -r localhost`;
+	
+	# Port ranges are inclusize
+ 	if ( $config{'udp_map'} && $config{'udp_map'} =~ /yes/i ) {
+		if ( defined $options{'v'} )
+	   	{
+			printf("\nBaselining UDP ports\n");
+		}
+		my $lowerbound1 = -1;  
+		my $upperbound1 = -1;
+		my $portrange1 = "";	
+		my $lowerbound2 = -1;  
+		my $upperbound2 = -1;
+		my $portrange2 = "";	
+		if($config{'udp_port_ignore_upper'} == 65535)
+		{
+			$lowerbound1 = 0;  
+			$upperbound1 = $config{'udp_port_ignore_lower'} - 1;  
+			$portrange1 = "$lowerbound1-$upperbound1";
+			$lowerbound2 = -1;  
+			$upperbound2 = -1;  
+			$portrange2 = "";
+		}
+		else {
+			$lowerbound1 = 0;  
+			$upperbound1 = $config{'udp_port_ignore_lower'} - 1;  
+			$portrange1 = "$lowerbound1-$upperbound1";
+			$lowerbound2 = $config{'udp_port_ignore_upper'} + 1;  
+			$lowerbound2 = ($lowerbound2, 65535)[$lowerbound2 > 65535];
+			$upperbound2 = 65535;  
+			$portrange2 = ",$lowerbound2-$upperbound2";
+		}
+
+		if ( defined $options{'v'} )
+	   	{
+			printf("\nChecking UDP port range $portrange1$portrange2\n");
+		}
+		@nmapouttmp = `$config{'nmap_path'} -p$portrange1$portrange2 -P0 -sU -r localhost`;
+
 		if ( defined $options{'v'} ) {
 			printf("\nSaving a copy of the UDP port profile...\n");
 		}
 		foreach (@nmapouttmp) {
-		  if($_ =~ /^\d.+\/udp\s+open\S*\s+\S+$/) {
-			if ( defined $options{'v'} ) {
-				printf("$_");
+			if($_ =~ /^\d.+\/udp\s+open\S*\s+\S+$/) {
+				if ( defined $options{'v'} ) {
+					printf("$_");
+				}
+				push(@nmapout,$_);	
 			}
-		    push(@nmapout,$_);	
-		  }
 		}
 		undef(@nmapouttmp);
-        open( FILE, ">/var/tmp/nss/nmap.udp.$date" );
+		open( FILE, ">/var/tmp/nss/nmap.udp.$date" );
 		if ( defined $options{'v'} ) {
 			printf("Printing out /var/tmp/nss/nmap.udp.$date\n");
 		}
-        print( FILE @nmapout );
-        close(FILE);
+		print( FILE @nmapout );
+		close(FILE);
     }
 
     if ( $config{'tcp_map'} && $config{'tcp_map'} =~ /yes/i ) {
 		if ( defined $options{'v'} ) {
-			printf("\nSaving a copy of the TCP port profile...\n");
+			printf("\nBaselining TCP ports\n");
+			printf("X11 port ignore lower:  $config{'x11_port_ignore_lower'}\n");
+			printf("X11 port ignore upper:  $config{'x11_port_ignore_upper'}\n");
+			printf("TCP port ignore lower:  $config{'tcp_port_ignore_lower'}\n");
+			printf("TCP port ignore upper:  $config{'tcp_port_ignore_upper'}\n");  
 		}
-        if ( $config{'os'} eq 'sunos' ) {
+		my $lowerbound1 = -1;  
+		my $upperbound1 = -1;
+		my $portrange1 = "";	
+		my $lowerbound2 = -1;  
+		my $upperbound2 = -1;
+		my $portrange2 = "";	
+		my $lowerbound3 = -1;  
+		my $upperbound3 = -1;
+		my $portrange3 = "";	
+		if($config{'tcp_port_ignore_upper'} == 65535)
+		{
+			if ( defined $options{'v'} ) {
+				printf("\nTCP lower and upper ignore range values are equal\n");
+			}
+			if($config{'x11_port_ignore_lower'} == $config{'x11_port_ignore_upper'})
+			{
+				if ( defined $options{'v'} ) {
+					printf("\nX11 lower and upper ignore range values are equal\n");
+				}
+				$lowerbound1 = 0;  
+				$upperbound1 = $config{'tcp_port_ignore_lower'} - 1;
+				$portrange1 = "$lowerbound1-$upperbound1";	
+				$lowerbound2 = -1;  
+				$upperbound2 = -1;
+				$portrange2 = "";	
+				$lowerbound3 = -1;  
+				$upperbound3 = -1;
+				$portrange3= "";	
+			}
+			else {
+				$lowerbound1 = 0;  
+				$upperbound1 = $config{'x11_port_ignore_lower'} - 1;
+				$portrange1 = "$lowerbound1-$upperbound1";	
+				$lowerbound2 = $config{'x11_port_ignore_upper'} + 1;  
+				$lowerbound2 = ($lowerbound2, 65535)[$lowerbound2 > 65535];
+				$upperbound2 = $config{'tcp_port_ignore_lower'} - 1;
+				$portrange2 = ",$lowerbound2-$upperbound2";	
+				$lowerbound3 = -1;  
+				$upperbound3 = -1;
+				$portrange3= "";	
+			}
+		}
+		else {
+			if($config{'x11_port_ignore_lower'} == $config{'x11_port_ignore_upper'})
+			{
+				if ( defined $options{'v'} ) {
+					printf("\nX11 lower and upper ignore range values are equal\n");
+				}
+				$lowerbound1 = 0;  
+				$upperbound1 = $config{'tcp_port_ignore_lower'} - 1;
+				$portrange1 = "$lowerbound1-$upperbound1";	
+				$lowerbound2 = -1;  
+				$upperbound2 = -1;
+				$portrange2 = "";	
+				$lowerbound3 = $config{'tcp_port_ignore_upper'} + 1;  
+				$lowerbound3 = ($lowerbound3, 65535)[$lowerbound3 > 65535];
+				$upperbound3 = 65535;
+				$portrange3 = ",$lowerbound3-$upperbound3";	
+			}
+			else {
+				$lowerbound1 = 0;  
+				$upperbound1 = $config{'x11_port_ignore_lower'} - 1;
+				$portrange1 = "$lowerbound1-$upperbound1";	
+				$lowerbound2 = $config{'x11_port_ignore_upper'} + 1;  
+				$upperbound2 = $config{'tcp_port_ignore_lower'} - 1;
+				$portrange2 = ",$lowerbound2-$upperbound2";	
+				$lowerbound3 = $config{'tcp_port_ignore_upper'} + 1;  
+				$lowerbound3 = ($lowerbound3, 65535)[$lowerbound3 > 65535];
+				$upperbound3 = 65535;
+				$portrange3 = ",$lowerbound3-$upperbound3";	
+			}
+		}
+
+		if ( defined $options{'v'} ) {
+			printf("\nChecking TCP port range $portrange1$portrange2$portrange3\n");
+		}
+		# Solaris
+     	if ( $config{'os'} eq 'sunos' ) {
             $datadir = $config{'nmap_datadir'};
             @nmapouttmp =
               `$config{'nmap_path'} --datadir $datadir -P0 -sT -r localhost`;
         }
+		# Ubuntu and Redhat
         else {
-            @nmapouttmp = `$config{'nmap_path'} -p0-65535 -P0 -sT -r localhost`;
+			@nmapouttmp = `$config{'nmap_path'} -p$portrange1$portrange2$portrange3 -P0 -sT -r localhost`;
         }
+
+   		if ( defined $options{'v'} ) {
+			printf("\nSaving a copy of the TCP port profile...\n");
+		}
+
 		foreach (@nmapouttmp) {
 		  if($_ =~ /^\d.+\/tcp\s+open\S*\s+\S+$/) {
 			if ( defined $options{'v'} ) {
@@ -605,7 +731,6 @@ if ( $config{'udp_map'} && $config{'udp_map'} =~ /yes/i ) {
     closedir(DIR);
     @filelist2 = ();
     foreach (@filelist) {
-
         if ( $_ =~ 'nmap.udp' ) {
             push( @filelist2, $_ );
         }
@@ -617,7 +742,37 @@ if ( $config{'udp_map'} && $config{'udp_map'} =~ /yes/i ) {
     $file = "/var/tmp/nss/" . $file;
 
     ## Create current port map
-    @nmapouttmp = `$config{'nmap_path'} -p0-32767 -sU -r localhost`;
+	my $lowerbound1 = -1;  
+	my $upperbound1 = -1;
+	my $portrange1 = "";	
+	my $lowerbound2 = -1;  
+	my $upperbound2 = -1;
+	my $portrange2 = "";	
+	if($config{'udp_port_ignore_upper'} == 65535)
+	{
+		$lowerbound1 = 0;  
+		$upperbound1 = $config{'udp_port_ignore_lower'} - 1;  
+		$portrange1 = "$lowerbound1-$upperbound1";
+		$lowerbound2 = -1;  
+		$upperbound2 = -1;  
+		$portrange2 = "";
+	}
+	else
+	{
+		$lowerbound1 = 0;  
+		$upperbound1 = $config{'udp_port_ignore_lower'} - 1;  
+		$portrange1 = "$lowerbound1-$upperbound1";
+		$lowerbound2 = $config{'udp_port_ignore_upper'} + 1;  
+		$lowerbound2 = ($lowerbound2, 65535)[$lowerbound2 > 65535];
+		$upperbound2 = 65535;  
+		$portrange2 = ",$lowerbound2-$upperbound2";
+	}
+
+	if ( defined $options{'v'} ) {
+		printf("\nChecking UDP port range $portrange1$portrange2\n");
+	}
+	@nmapouttmp = `$config{'nmap_path'} -p$portrange1$portrange2 -P0 -sU -r localhost`;
+
 	foreach (@nmapouttmp) {
 	  if($_ =~ /^\d.+\/udp\s+open\S*\s+\S+$/) {
 		push(@nmapout,$_);	
@@ -689,14 +844,93 @@ if ( $config{'tcp_map'} && $config{'tcp_map'} =~ /yes/i ) {
     $file = "/var/tmp/nss/" . $file;
 
     ## Create current port map
-    if ( $config{'os'} eq 'sunos' ) {
-        $datadir = $config{'nmap_datadir'};
-        @nmapouttmp =
-          `$config{'nmap_path'} --datadir $datadir -P0 -sT -r localhost`;
-    }
-    else {
-        @nmapouttmp = `$config{'nmap_path'} -p0-65535 -P0 -sT -r localhost`;
-    }
+	my $lowerbound1 = -1;  
+	my $upperbound1 = -1;
+	my $portrange1 = "";	
+	my $lowerbound2 = -1;  
+	my $upperbound2 = -1;
+	my $portrange2 = "";	
+	my $lowerbound3 = -1;  
+	my $upperbound3 = -1;
+	my $portrange3 = "";	
+	if($config{'tcp_port_ignore_upper'} == 65535)
+	{
+		if ( defined $options{'v'} ) {
+			printf("\nTCP lower and upper ignore range values are equal\n");
+		}
+		if($config{'x11_port_ignore_lower'} == $config{'x11_port_ignore_upper'})
+		{
+			if ( defined $options{'v'} ) {
+				printf("\nX11 lower and upper ignore range values are equal\n");
+			}
+			$lowerbound1 = 0;  
+			$upperbound1 = $config{'tcp_port_ignore_lower'} - 1;
+			$portrange1 = "$lowerbound1-$upperbound1";	
+			$lowerbound2 = -1;  
+			$upperbound2 = -1;
+			$portrange2 = "";	
+			$lowerbound3 = -1;  
+			$upperbound3 = -1;
+			$portrange3= "";	
+		}
+		else {
+			$lowerbound1 = 0;  
+			$upperbound1 = $config{'x11_port_ignore_lower'} - 1;
+			$portrange1 = "$lowerbound1-$upperbound1";	
+			$lowerbound2 = $config{'x11_port_ignore_upper'} + 1;  
+			$lowerbound2 = ($lowerbound2, 65535)[$lowerbound2 > 65535];
+			$upperbound2 = $config{'tcp_port_ignore_lower'} - 1;
+			$portrange2 = ",$lowerbound2-$upperbound2";	
+			$lowerbound3 = -1;  
+			$upperbound3 = -1;
+			$portrange3= "";	
+		}
+	}
+	else {
+		if($config{'x11_port_ignore_lower'} == $config{'x11_port_ignore_upper'})
+		{
+			if ( defined $options{'v'} ) {
+				printf("\nX11 lower and upper ignore range values are equal\n");
+			}
+			$lowerbound1 = 0;  
+			$upperbound1 = $config{'tcp_port_ignore_lower'} - 1;
+			$portrange1 = "$lowerbound1-$upperbound1";	
+			$lowerbound2 = -1;  
+			$upperbound2 = -1;
+			$portrange2 = "";	
+			$lowerbound3 = $config{'tcp_port_ignore_upper'} + 1;  
+			$lowerbound3 = ($lowerbound3, 65535)[$lowerbound3 > 65535];
+			$upperbound3 = 65535;
+			$portrange3 = ",$lowerbound3-$upperbound3";	
+		}
+		else {
+			$lowerbound1 = 0;  
+			$upperbound1 = $config{'x11_port_ignore_lower'} - 1;
+			$portrange1 = "$lowerbound1-$upperbound1";	
+			$lowerbound2 = $config{'x11_port_ignore_upper'} + 1;  
+			$upperbound2 = $config{'tcp_port_ignore_lower'} - 1;
+			$portrange2 = ",$lowerbound2-$upperbound2";	
+			$lowerbound3 = $config{'tcp_port_ignore_upper'} + 1;  
+			$lowerbound3 = ($lowerbound3, 65535)[$lowerbound3 > 65535];
+			$upperbound3 = 65535;
+			$portrange3 = ",$lowerbound3-$upperbound3";	
+		}
+	}
+
+	if ( defined $options{'v'} ) {
+		printf("\nChecking TCP port range $portrange1$portrange2$portrange3\n");
+	}
+	# Solaris
+	if ( $config{'os'} eq 'sunos' ) {
+		$datadir = $config{'nmap_datadir'};
+		@nmapouttmp =
+		  `$config{'nmap_path'} --datadir $datadir -P0 -sT -r localhost`;
+	}
+	# Ubuntu and Redhat
+	else {
+		@nmapouttmp = `$config{'nmap_path'} -p$portrange1$portrange2$portrange3 -P0 -sT -r localhost`;
+	}
+
 	foreach (@nmapouttmp) {
 	  if($_ =~ /^\d.+\/tcp\s+open\S*\s+\S+$/) {
 		push(@nmapout,$_);	
